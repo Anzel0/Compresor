@@ -32,11 +32,8 @@ def hello_world():
 def run_server():
     app_flask.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
 
-# Inicia el servidor Flask en un hilo al inicio del script
-Thread(target=run_server).start()
-
 # =======================================================
-# LÓGICA DE TU BOT (TU CÓDIGO ORIGINAL)
+# LÓGICA DE TU BOT
 # =======================================================
 
 # Aplicar nest_asyncio para entornos como Jupyter Notebook
@@ -313,7 +310,7 @@ async def upload_final_video(client, chat_id):
         stream = next((s for s in probe['streams'] if s['codec_type'] == 'video'), {})
         duration = int(float(stream.get('duration', 0)))
         width = int(stream.get('width', 0))
-        height = int(stream.get('height', 0))
+        height = int(int(stream.get('height', 0)))
 
         start_time = time.time()
 
@@ -379,7 +376,7 @@ async def video_handler(client, message: Message):
 
 @app.on_message(filters.photo & filters.private)
 async def thumbnail_handler(client, message: Message):
-    chat_id = message.chat.id
+    chat_id = message.message.chat.id
     user_info = user_data.get(chat_id)
     if not user_info or user_info.get('state') != 'waiting_for_thumbnail':
         return
@@ -537,7 +534,12 @@ def clean_up(chat_id):
             except OSError as e: logger.warning(f"No se pudo eliminar {path}: {e}")
     logger.info(f"Datos del usuario {chat_id} limpiados.")
 
-async def main():
+# --- Funciones de Arranque ---
+async def start_bot_and_server():
+    """Inicia el servidor Flask y el bot de Pyrogram de forma concurrente."""
+    # Inicia el servidor Flask en un hilo
+    Thread(target=run_server).start()
+
     logger.info("Terminando procesos FFmpeg antiguos...")
     for proc in psutil.process_iter(['pid', 'name']):
         if 'ffmpeg' in proc.info['name'].lower():
@@ -547,11 +549,13 @@ async def main():
     await app.start()
     me = await app.get_me()
     logger.info(f"Bot en línea como @{me.username}. Presiona Ctrl+C para detener.")
+
+    # Mantiene el bot en ejecución indefinidamente
     await asyncio.Future()
 
 if __name__ == "__main__":
     try:
-        # Aquí se inicia el bot, por eso no se usa bot.run_forever()
-        asyncio.run(main())
+        # Usa el manejador de arranque principal
+        asyncio.run(start_bot_and_server())
     except (KeyboardInterrupt, SystemExit):
         logger.info("Bot detenido manualmente.")
