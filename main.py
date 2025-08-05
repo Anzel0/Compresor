@@ -310,7 +310,7 @@ async def upload_final_video(client, chat_id):
         stream = next((s for s in probe['streams'] if s['codec_type'] == 'video'), {})
         duration = int(float(stream.get('duration', 0)))
         width = int(stream.get('width', 0))
-        height = int(int(stream.get('height', 0)))
+        height = int(stream.get('height', 0))
 
         start_time = time.time()
 
@@ -376,7 +376,7 @@ async def video_handler(client, message: Message):
 
 @app.on_message(filters.photo & filters.private)
 async def thumbnail_handler(client, message: Message):
-    chat_id = message.message.chat.id
+    chat_id = message.chat.id
     user_info = user_data.get(chat_id)
     if not user_info or user_info.get('state') != 'waiting_for_thumbnail':
         return
