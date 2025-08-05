@@ -1,6 +1,3 @@
-# =======================================================
-# IMPORTACIONES
-# =======================================================
 import os
 import ffmpeg
 import psutil
@@ -13,37 +10,13 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from pyrogram.errors import MessageNotModified, FloodWait
 import nest_asyncio
 
-# Importaciones para el servidor web de Render
-from threading import Thread
-from flask import Flask
-
-# =======================================================
-# CÓDIGO PARA EL SERVIDOR WEB (NO TOCAR)
-# =======================================================
-# Crea una instancia de la aplicación Flask
-app_flask = Flask(__name__)
-
-# Crea un endpoint simple para que Render haga ping
-@app_flask.route('/')
-def hello_world():
-    return 'Bot is alive!'
-
-# Función para ejecutar la aplicación Flask en un hilo separado
-def run_server():
-    app_flask.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
-
-# =======================================================
-# LÓGICA DE TU BOT
-# =======================================================
-
 # Aplicar nest_asyncio para entornos como Jupyter Notebook
 nest_asyncio.apply()
 
 # --- Configuración del Bot ---
-# Ahora el bot lee las credenciales desde las variables de entorno de Render
-API_ID = os.environ.get("API_ID")
-API_HASH = os.environ.get("API_HASH")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+API_ID = '27047123'
+API_HASH = '0433bb3ec4789fcd09cbd3ea11672cd0'
+BOT_TOKEN = '7585043587:AAFiEqFhlz6a3j3tVrhjZ0DGQNC--24aqQk'
 
 # Configuración de Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -534,12 +507,7 @@ def clean_up(chat_id):
             except OSError as e: logger.warning(f"No se pudo eliminar {path}: {e}")
     logger.info(f"Datos del usuario {chat_id} limpiados.")
 
-# --- Funciones de Arranque ---
-async def start_bot_and_server():
-    """Inicia el servidor Flask y el bot de Pyrogram de forma concurrente."""
-    # Inicia el servidor Flask en un hilo
-    Thread(target=run_server).start()
-
+async def main():
     logger.info("Terminando procesos FFmpeg antiguos...")
     for proc in psutil.process_iter(['pid', 'name']):
         if 'ffmpeg' in proc.info['name'].lower():
@@ -549,13 +517,10 @@ async def start_bot_and_server():
     await app.start()
     me = await app.get_me()
     logger.info(f"Bot en línea como @{me.username}. Presiona Ctrl+C para detener.")
-
-    # Mantiene el bot en ejecución indefinidamente
     await asyncio.Future()
 
 if __name__ == "__main__":
     try:
-        # Usa el manejador de arranque principal
-        asyncio.run(start_bot_and_server())
+        asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("Bot detenido manualmente.")
