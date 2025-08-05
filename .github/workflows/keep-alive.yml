@@ -9,4 +9,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Service
-        run: curl --silent "https://tu-url-de-render.onrender.com"
+        run: curl --silent "https://compresor-q6fh.onrender.com"
