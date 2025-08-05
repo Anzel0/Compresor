@@ -1,3 +1,6 @@
+# =======================================================
+# IMPORTACIONES
+# =======================================================
 import os
 import ffmpeg
 import psutil
@@ -9,6 +12,32 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.errors import MessageNotModified, FloodWait
 import nest_asyncio
+
+# Importaciones para el servidor web de Render
+from threading import Thread
+from flask import Flask
+
+# =======================================================
+# CÓDIGO PARA EL SERVIDOR WEB (NO TOCAR)
+# =======================================================
+# Crea una instancia de la aplicación Flask
+app_flask = Flask(__name__)
+
+# Crea un endpoint simple para que Render haga ping
+@app_flask.route('/')
+def hello_world():
+    return 'Bot is alive!'
+
+# Función para ejecutar la aplicación Flask en un hilo separado
+def run_server():
+    app_flask.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
+
+# Inicia el servidor Flask en un hilo al inicio del script
+Thread(target=run_server).start()
+
+# =======================================================
+# LÓGICA DE TU BOT (TU CÓDIGO ORIGINAL)
+# =======================================================
 
 # Aplicar nest_asyncio para entornos como Jupyter Notebook
 nest_asyncio.apply()
@@ -522,7 +551,7 @@ async def main():
 
 if __name__ == "__main__":
     try:
+        # Aquí se inicia el bot, por eso no se usa bot.run_forever()
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("Bot detenido manualmente.")
-
