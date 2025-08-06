@@ -188,7 +188,7 @@ async def run_compression_flow(client, chat_id, status_message):
             '-preset', opts['preset'],
             '-vcodec', 'libx264',
             '-acodec', 'aac',
-            '-b:a', '64k',
+            '-b:a', opts['audio_bitrate'], # <-- AUDIO BITRATE
             '-movflags', '+faststart',
             '-progress', 'pipe:1',
             '-nostats',
@@ -427,7 +427,7 @@ async def callback_handler(client, cb: CallbackQuery):
 
     elif action == "action_compress":
         user_info['action'] = 'compress'
-        user_info['compression_options'] = {'crf': '22', 'resolution': '360', 'preset': 'veryfast'}
+        user_info['compression_options'] = {'crf': '22', 'resolution': '360', 'preset': 'veryfast', 'audio_bitrate': '64k'}
         await show_compression_options(client, chat_id, cb.message.id)
 
     elif action == "action_convert_only":
@@ -438,7 +438,7 @@ async def callback_handler(client, cb: CallbackQuery):
             await show_conversion_options(client, chat_id, cb.message.id, text="Descarga completa. ¿Cómo quieres continuar?")
 
     elif action == "compressopt_default":
-        user_info['compression_options'] = {'crf': '22', 'resolution': '360', 'preset': 'veryfast'}
+        user_info['compression_options'] = {'crf': '22', 'resolution': '360', 'preset': 'veryfast', 'audio_bitrate': '64k'}
         await cb.message.edit("Iniciando compresión con opciones por defecto...")
         await run_compression_flow(client, chat_id, cb.message)
 
@@ -448,10 +448,13 @@ async def callback_handler(client, cb: CallbackQuery):
     elif action.startswith("adv_"):
         part, value = action.split("_")[1], action.split("_")[2]
         user_info.setdefault('compression_options', {})[part] = value
-        next_part_map = {"crf": "resolution", "resolution": "preset", "preset": "confirm"}
+        next_part_map = {"crf": "resolution", "resolution": "preset", "preset": "audio_bitrate", "audio_bitrate": "confirm"}
         next_part = next_part_map.get(part)
         if next_part:
             await show_advanced_menu(client, chat_id, cb.message.id, next_part, user_info['compression_options'])
+        else:
+            await show_advanced_menu(client, chat_id, cb.message.id, "confirm", user_info['compression_options'])
+
 
     elif action == "start_advanced_compression":
         await cb.message.edit("Opciones guardadas. Iniciando compresión...")
@@ -490,15 +493,17 @@ async def show_compression_options(client, chat_id, msg_id):
 
 async def show_advanced_menu(client, chat_id, msg_id, part, opts=None):
     menus = {
-        "crf": {"text": "1/3: Calidad (CRF)", "opts": [("18", "18"), ("20", "20"), ("22", "22"), ("25", "25"), ("28", "28")], "prefix": "adv_crf"},
-        "resolution": {"text": "2/3: Resolución", "opts": [("1080p", "1080"), ("720p", "720"), ("480p", "480"), ("360p", "360"), ("240p", "240")], "prefix": "adv_resolution"},
-        "preset": {"text": "3/3: Velocidad", "opts": [("Lenta", "slow"), ("Media", "medium"), ("Muy rápida", "veryfast"), ("Rápida", "fast"), ("Ultra rápida", "ultrafast")], "prefix": "adv_preset"}
+        "crf": {"text": "1/4: Calidad de Video (CRF)", "opts": [("18 (Alta)", "18"), ("20 (Media)", "20"), ("22 (Baja)", "22"), ("25 (Muy Baja)", "25"), ("28 (Extrema)", "28")], "prefix": "adv_crf"},
+        "resolution": {"text": "2/4: Resolución de Video", "opts": [("1080p", "1080"), ("720p", "720"), ("480p", "480"), ("360p", "360"), ("240p", "240")], "prefix": "adv_resolution"},
+        "preset": {"text": "3/4: Velocidad de Compresión", "opts": [("Lenta", "slow"), ("Media", "medium"), ("Muy rápida", "veryfast"), ("Rápida", "fast"), ("Ultra rápida", "ultrafast")], "prefix": "adv_preset"},
+        "audio_bitrate": {"text": "4/4: Bitrate de Audio", "opts": [("64k", "64k"), ("92k", "92k"), ("128k", "128k"), ("160k", "160k"), ("192k", "192k"), ("256k", "256k")], "prefix": "adv_audio_bitrate"},
     }
     if part == "confirm":
         text = (f"Confirmar opciones:\n"
                 f"- Calidad (CRF): `{opts.get('crf', 'N/A')}`\n"
                 f"- Resolución: `{opts.get('resolution', 'N/A')}p`\n"
-                f"- Preset: `{opts.get('preset', 'N/A')}`")
+                f"- Preset: `{opts.get('preset', 'N/A')}`\n"
+                f"- Bitrate de Audio: `{opts.get('audio_bitrate', 'N/A')}`")
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Iniciar Compresión", callback_data="start_advanced_compression")]])
     else:
         info = menus[part]
