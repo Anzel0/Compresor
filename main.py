@@ -57,6 +57,9 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 # Diccionario para almacenar el estado y datos por usuario
 user_data = {}
 
+# VARIABLE AÑADIDA: Almacena el ID del chat activo
+chat_activo = None
+
 # --- Instancia del Bot ---
 app = Client("video_processor_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -343,15 +346,37 @@ async def upload_final_video(client, chat_id):
 
 @app.on_message(filters.command("start") & filters.private)
 async def start_command(client, message):
-    clean_up(message.chat.id)
-    await message.reply(
-        "¡Hola! 👋 Soy tu bot para procesar videos.\n\n"
-        "Puedo **comprimir** y **convertir** tus videos. **Envíame un video para empezar.**"
-    )
+    global chat_activo
+    chat_id = message.chat.id
+    
+    # Si ya hay un chat activo, notifica al usuario y no hagas nada más.
+    if chat_activo is not None and chat_activo != chat_id:
+        await message.reply("⚠️ El bot ya está activo en otro chat. Por favor, usa el comando `/start` en ese chat para continuar o espera a que termine el proceso.")
+        return
+
+    # Si no hay un chat activo, este será el chat principal.
+    if chat_activo is None:
+        chat_activo = chat_id
+        await message.reply(
+            "¡Hola! 👋 Soy tu bot para procesar videos.\n\n"
+            "Puedo **comprimir** y **convertir** tus videos. **Envíame un video para empezar.**"
+        )
+    else:
+        # Si el usuario usa /start de nuevo en el mismo chat, no hay problema.
+        await message.reply("El bot ya está activo en este chat. ¡Envía un video para empezar!")
+
+    clean_up(chat_id)
 
 @app.on_message(filters.video & filters.private)
 async def video_handler(client, message: Message):
     chat_id = message.chat.id
+    
+    # NUEVA VERIFICACIÓN: Si el chat no es el activo, ignora el mensaje.
+    global chat_activo
+    if chat_activo is None or chat_id != chat_activo:
+        await message.reply("⚠️ Este bot solo está activo en un chat. Por favor, usa el comando `/start` para activarlo aquí.")
+        return
+
     if user_data.get(chat_id):
         await client.send_message(chat_id, "⚠️ Un proceso anterior se ha cancelado para iniciar uno nuevo.")
         clean_up(chat_id)
@@ -377,6 +402,12 @@ async def video_handler(client, message: Message):
 @app.on_message(filters.photo & filters.private)
 async def thumbnail_handler(client, message: Message):
     chat_id = message.chat.id
+    
+    # NUEVA VERIFICACIÓN: Si el chat no es el activo, ignora el mensaje.
+    global chat_activo
+    if chat_activo is None or chat_id != chat_activo:
+        return
+        
     user_info = user_data.get(chat_id)
     if not user_info or user_info.get('state') != 'waiting_for_thumbnail':
         return
@@ -396,6 +427,12 @@ async def thumbnail_handler(client, message: Message):
 @app.on_message(filters.text & filters.private)
 async def rename_handler(client, message: Message):
     chat_id = message.chat.id
+    
+    # NUEVA VERIFICACIÓN: Si el chat no es el activo, ignora el mensaje.
+    global chat_activo
+    if chat_activo is None or chat_id != chat_activo:
+        return
+        
     user_info = user_data.get(chat_id)
     if not user_info or user_info.get('state') != 'waiting_for_new_name':
         return
@@ -410,6 +447,13 @@ async def rename_handler(client, message: Message):
 @app.on_callback_query()
 async def callback_handler(client, cb: CallbackQuery):
     chat_id = cb.message.chat.id
+    
+    # NUEVA VERIFICACIÓN: Si el chat no es el activo, ignora el callback.
+    global chat_activo
+    if chat_activo is None or chat_id != chat_activo:
+        await cb.answer("❌ Esta operación no es válida en este chat. Por favor, inicia el bot con el comando /start en un chat privado.", show_alert=True)
+        return
+
     user_info = user_data.get(chat_id)
     if not user_info:
         await cb.answer("Esta operación ha expirado.", show_alert=True)
