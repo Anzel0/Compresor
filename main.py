@@ -40,7 +40,6 @@ def run_server():
 nest_asyncio.apply()
 
 # --- Configuración del Bot ---
-# Ahora el bot lee las credenciales desde las variables de entorno de Render
 API_ID = os.environ.get("API_ID")
 API_HASH = os.environ.get("API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -56,9 +55,6 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # Diccionario para almacenar el estado y datos por usuario
 user_data = {}
-
-# VARIABLE AÑADIDA: Almacena el ID del chat activo
-chat_activo = None
 
 # --- Instancia del Bot ---
 app = Client("video_processor_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
@@ -186,7 +182,7 @@ async def run_compression_flow(client, chat_id, status_message):
         cmd = [
             'ffmpeg', '-i', downloaded_path,
             '-vf', f"scale=-2:{opts['resolution']}",
-            '-r', '30',  # <-- fps definido aquí
+            '-r', '30',
             '-crf', opts['crf'],
             '-preset', opts['preset'],
             '-vcodec', 'libx264',
@@ -233,7 +229,6 @@ async def run_compression_flow(client, chat_id, status_message):
 
 async def track_ffmpeg_progress(client, chat_id, msg_id, process, duration, original_size, output_path):
     """
-    🚀 ¡SOLUCIÓN ROBUSTA! 🚀
     Lee la salida de FFmpeg de forma más fiable para garantizar que el progreso se muestre.
     """
     last_update = 0
@@ -264,16 +259,14 @@ async def track_ffmpeg_progress(client, chat_id, msg_id, process, duration, orig
                 ffmpeg_data.clear()
                 continue
 
-            # 💡 Nueva lógica para evitar inundar la API
             current_time = time.time()
-            if current_time - last_update < 1.5:  # Intervalo de actualización de 1.5 segundos
+            if current_time - last_update < 1.5:
                 ffmpeg_data.clear()
                 continue
             last_update = current_time
 
             current_time_sec = current_time_us / 1_000_000
 
-            # Usa 'speed' o calcula uno aproximado
             speed_str = ffmpeg_data.get('speed', '0x').replace('x', '')
             speed_mult = float(speed_str) if speed_str else 0
 
@@ -344,39 +337,17 @@ async def upload_final_video(client, chat_id):
 
 # --- Handlers de Mensajes y Callbacks ---
 
-@app.on_message(filters.command("start") & filters.private)
+@app.on_message(filters.command("start", ["start"]))
 async def start_command(client, message):
-    global chat_activo
-    chat_id = message.chat.id
-    
-    # Si ya hay un chat activo, notifica al usuario y no hagas nada más.
-    if chat_activo is not None and chat_activo != chat_id:
-        await message.reply("⚠️ El bot ya está activo en otro chat. Por favor, usa el comando `/start` en ese chat para continuar o espera a que termine el proceso.")
-        return
+    clean_up(message.chat.id)
+    await message.reply(
+        "¡Hola! 👋 Soy tu bot para procesar videos.\n\n"
+        "Puedo **comprimir** y **convertir** tus videos. **Envíame un video para empezar.**"
+    )
 
-    # Si no hay un chat activo, este será el chat principal.
-    if chat_activo is None:
-        chat_activo = chat_id
-        await message.reply(
-            "¡Hola! 👋 Soy tu bot para procesar videos.\n\n"
-            "Puedo **comprimir** y **convertir** tus videos. **Envíame un video para empezar.**"
-        )
-    else:
-        # Si el usuario usa /start de nuevo en el mismo chat, no hay problema.
-        await message.reply("El bot ya está activo en este chat. ¡Envía un video para empezar!")
-
-    clean_up(chat_id)
-
-@app.on_message(filters.video & filters.private)
+@app.on_message(filters.video)
 async def video_handler(client, message: Message):
     chat_id = message.chat.id
-    
-    # NUEVA VERIFICACIÓN: Si el chat no es el activo, ignora el mensaje.
-    global chat_activo
-    if chat_activo is None or chat_id != chat_activo:
-        await message.reply("⚠️ Este bot solo está activo en un chat. Por favor, usa el comando `/start` para activarlo aquí.")
-        return
-
     if user_data.get(chat_id):
         await client.send_message(chat_id, "⚠️ Un proceso anterior se ha cancelado para iniciar uno nuevo.")
         clean_up(chat_id)
@@ -399,15 +370,9 @@ async def video_handler(client, message: Message):
     ])
     await message.reply_text("Video recibido. ¿Qué quieres hacer?", reply_markup=keyboard, quote=True)
 
-@app.on_message(filters.photo & filters.private)
+@app.on_message(filters.photo)
 async def thumbnail_handler(client, message: Message):
     chat_id = message.chat.id
-    
-    # NUEVA VERIFICACIÓN: Si el chat no es el activo, ignora el mensaje.
-    global chat_activo
-    if chat_activo is None or chat_id != chat_activo:
-        return
-        
     user_info = user_data.get(chat_id)
     if not user_info or user_info.get('state') != 'waiting_for_thumbnail':
         return
@@ -424,15 +389,9 @@ async def thumbnail_handler(client, message: Message):
         await update_message(client, chat_id, status_id, "❌ Error al descargar la miniatura.")
         clean_up(chat_id)
 
-@app.on_message(filters.text & filters.private)
+@app.on_message(filters.text)
 async def rename_handler(client, message: Message):
     chat_id = message.chat.id
-    
-    # NUEVA VERIFICACIÓN: Si el chat no es el activo, ignora el mensaje.
-    global chat_activo
-    if chat_activo is None or chat_id != chat_activo:
-        return
-        
     user_info = user_data.get(chat_id)
     if not user_info or user_info.get('state') != 'waiting_for_new_name':
         return
@@ -447,13 +406,6 @@ async def rename_handler(client, message: Message):
 @app.on_callback_query()
 async def callback_handler(client, cb: CallbackQuery):
     chat_id = cb.message.chat.id
-    
-    # NUEVA VERIFICACIÓN: Si el chat no es el activo, ignora el callback.
-    global chat_activo
-    if chat_activo is None or chat_id != chat_activo:
-        await cb.answer("❌ Esta operación no es válida en este chat. Por favor, inicia el bot con el comando /start en un chat privado.", show_alert=True)
-        return
-
     user_info = user_data.get(chat_id)
     if not user_info:
         await cb.answer("Esta operación ha expirado.", show_alert=True)
