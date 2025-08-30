@@ -40,6 +40,7 @@ def run_server():
 nest_asyncio.apply()
 
 # --- Configuración del Bot ---
+# Ahora el bot lee las credenciales desde las variables de entorno de Render
 API_ID = os.environ.get("API_ID")
 API_HASH = os.environ.get("API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -182,7 +183,7 @@ async def run_compression_flow(client, chat_id, status_message):
         cmd = [
             'ffmpeg', '-i', downloaded_path,
             '-vf', f"scale=-2:{opts['resolution']}",
-            '-r', '30',
+            '-r', '30',  # <-- fps definido aquí
             '-crf', opts['crf'],
             '-preset', opts['preset'],
             '-vcodec', 'libx264',
@@ -229,6 +230,7 @@ async def run_compression_flow(client, chat_id, status_message):
 
 async def track_ffmpeg_progress(client, chat_id, msg_id, process, duration, original_size, output_path):
     """
+    🚀 ¡SOLUCIÓN ROBUSTA! 🚀
     Lee la salida de FFmpeg de forma más fiable para garantizar que el progreso se muestre.
     """
     last_update = 0
@@ -259,14 +261,16 @@ async def track_ffmpeg_progress(client, chat_id, msg_id, process, duration, orig
                 ffmpeg_data.clear()
                 continue
 
+            # 💡 Nueva lógica para evitar inundar la API
             current_time = time.time()
-            if current_time - last_update < 1.5:
+            if current_time - last_update < 1.5:  # Intervalo de actualización de 1.5 segundos
                 ffmpeg_data.clear()
                 continue
             last_update = current_time
 
             current_time_sec = current_time_us / 1_000_000
 
+            # Usa 'speed' o calcula uno aproximado
             speed_str = ffmpeg_data.get('speed', '0x').replace('x', '')
             speed_mult = float(speed_str) if speed_str else 0
 
@@ -337,7 +341,7 @@ async def upload_final_video(client, chat_id):
 
 # --- Handlers de Mensajes y Callbacks ---
 
-@app.on_message(filters.command("start", ["start"]))
+@app.on_message(filters.command("start") & filters.private)
 async def start_command(client, message):
     clean_up(message.chat.id)
     await message.reply(
@@ -345,7 +349,7 @@ async def start_command(client, message):
         "Puedo **comprimir** y **convertir** tus videos. **Envíame un video para empezar.**"
     )
 
-@app.on_message(filters.video)
+@app.on_message(filters.video & filters.private)
 async def video_handler(client, message: Message):
     chat_id = message.chat.id
     if user_data.get(chat_id):
@@ -370,7 +374,7 @@ async def video_handler(client, message: Message):
     ])
     await message.reply_text("Video recibido. ¿Qué quieres hacer?", reply_markup=keyboard, quote=True)
 
-@app.on_message(filters.photo)
+@app.on_message(filters.photo & filters.private)
 async def thumbnail_handler(client, message: Message):
     chat_id = message.chat.id
     user_info = user_data.get(chat_id)
@@ -389,7 +393,7 @@ async def thumbnail_handler(client, message: Message):
         await update_message(client, chat_id, status_id, "❌ Error al descargar la miniatura.")
         clean_up(chat_id)
 
-@app.on_message(filters.text)
+@app.on_message(filters.text & filters.private)
 async def rename_handler(client, message: Message):
     chat_id = message.chat.id
     user_info = user_data.get(chat_id)
